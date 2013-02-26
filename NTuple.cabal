@@ -1,0 +1,25 @@
+Name:                NTuple
+Version:             0.0.1
+Synopsis:            Working with tuples of arbitrary size/type
+Description:         
+Category:            Control, Data
+License:             GPL
+--License-file:        LICENSE
+Author:              Mike izbicki
+Maintainer:          mike@izbicki.me
+Build-Type:          Simple
+Cabal-Version:       >=1.8
+homepage:            http://github.com/mikeizbicki/NTuple/
+bug-reports:         http://github.com/mikeizbicki/NTuple/issues
+
+Library
+    Build-Depends:      
+        
+    hs-source-dirs:     src
+    ghc-options:        
+        -rtsopts 
+        -O2 
+        -- -fllvm
+    Exposed-modules:
+        Data.NTuple
+        
