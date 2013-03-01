@@ -33,6 +33,11 @@ import Debug.Trace
 data Color = Red | Blue | Green | Purple
     deriving (Read,Show,Eq,Ord)
 
+data ShowBox = forall a. (Show a) => ShowBox a
+
+instance Show ShowBox where
+    show (ShowBox a) = show a
+
 -------------------------------------------------------------------------------
 -- data types
 
@@ -76,17 +81,20 @@ instance TupWriter b where
 -------------------------------------------------------------------------------
 -- lens
 
+_i :: (SingI n) => Tuple (Replicate n a) -> Int -> a
+_i (Tuple vec) i = unsafeCoerce $ vec V.! i
+
 data GetIndex xs (n::Nat) a = GetIndex xs
 
 -- getIndex :: xs -> Sing n -> a
 
-class TupIndex i n a | i n -> a where
+{-class TupIndex i n a | i n -> a where
     _i :: (SingI n) => i -> (Sing n) -> a
 
 instance TupIndex (a:::b) Zero b where
     _i (b:::a) sing = b
 
-instance (TupIndex b i c) => TupIndex (a:::b) (Succ i) c where
+instance (TupIndex b i c) => TupIndex (a:::b) (Succ i) c where-}
 --     _i (b:::a) _ = _i b undefined -- (sing:: Sing i)
 
 -- instance TupIndex (a:::b) 0 b where
@@ -110,6 +118,37 @@ class Viewable tup where
 
 first :: Simple Lens (a,b) a
 first f (a,b) = undefined
+-------------------------------------------------------------------------------
+-- showing
+
+data ShowIndex a = ShowIndex Int a
+
+-- instance Show (ShowIndex (Tuple a) where
+--     show a = ""
+    
+-- instance (Show (ShowIndex (Tuple' xs))) => Show (NTuple' xs) where
+--     show tup = "(tup " ++ (show $ ShowIndex ((len tup)-1) tup) ++ ")"
+--         where
+--             n = V.length (getvec tup)
+-- --             n = fromIntegral $ fromSing (sing :: Sing n)    
+
+instance (Show (ShowIndex (Tuple a))) => Show (Tuple a) where
+    show a = "(tup $ "++(show $ ShowIndex (len-1) a)++")"
+        where
+            len = let (Tuple vec) = a in V.length vec
+
+instance 
+    ( Show a
+    , Show (ShowIndex (Tuple b))
+    ) => Show (ShowIndex (Tuple (a:::b))) where
+    show (ShowIndex i (Tuple vec)) = 
+        show (ShowIndex (i-1) (Tuple vec :: Tuple b))++":::"++show (unsafeCoerce (vec V.! i) :: a)
+    
+instance 
+    ( Show b
+    ) => Show (ShowIndex (Tuple b)) where
+    show (ShowIndex i (Tuple vec)) = show (unsafeCoerce (vec V.! i) :: b)
+        
 
 -------------------------------------------------------------------------------
 -- modification
@@ -160,6 +199,12 @@ first f (a,b) = undefined
 -- data Index (n::Nat) = Index
 -- type family ExtractIndex i :: Nat
 -- type instance ExtractIndex (Index i) = i
+
+-- class BoxTuple box t t' where
+--     boxtuple :: box -> t -> t'
+
+-- instance BoxTuple box (Tuple xs) (V.Vector box) where
+
 
 test :: (Num a) => Replicate n a -> Int
 test = undefined
