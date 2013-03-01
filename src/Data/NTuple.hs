@@ -17,7 +17,7 @@
 {-# LANGUAGE TypeFamilies #-}
 
 {-# LANGUAGE PolyKinds #-}
-{-# LANGUAGE OverlappingInstances #-}
+{-# LANGUAGE DatatypeContexts #-}
 
 module Data.NTuple'
     where
@@ -38,53 +38,143 @@ data ShowBox = forall a. (Show a) => ShowBox a
 instance Show ShowBox where
     show (ShowBox a) = show a
 
+newtype (Show a) => ShowWrap a = ShowWrap a
+    deriving (Read,Show,Eq,Ord)
+
+class HMap f hmap hmap2 | f hmap -> hmap2 where
+    hmap :: f -> hmap -> hmap2
+
+instance HMap (a->b) (HList '[]) (HList '[]) where
+    hmap f HNil = HNil
+
+-- instance HMap (a->b) (HList (x ': xs)) (
+
 -------------------------------------------------------------------------------
 -- data types
 
-data UnsafeBox = UnsafeBox
-    deriving (Read,Show)
+data HList :: [*] -> * where
+  HNil :: HList '[]
+  (:::) :: t -> HList ts -> HList (t ': ts)
+  
+infixr 5 :::
 
-data a:::b = b:::a
-    deriving (Read, Show, Eq, Ord)
+instance Show (HList '[]) where
+    show _ = "HNil"
+    
+instance (Show x, Show (HList xs)) => Show (HList (x ': xs)) where
+    show (x:::xs) = show x ++":::"++show xs
 
-newtype Tuple xs = Tuple (V.Vector UnsafeBox)
+class HLength xs where
+    hlength :: xs -> Int
+    
+instance HLength (HList '[]) where
+    hlength _ = 0
+    
+instance (HLength (HList xs)) => HLength (HList (x ': xs)) where
+    hlength (x:::xs) = 1+hlength xs
 
-tup :: (TupWriter a, TupLen a) => a -> Tuple a
-tup xs = Tuple $ V.create $ do
+newtype Tuple box xs = Tuple (V.Vector box)
+
+-- tup :: (HLength (HList xs), TupWrite xs x) => (x -> box) -> HList xs -> Tuple box xs
+tup boxer xs = Tuple $ V.create $ do
     v <- VM.new n
-    tupwrite v (n-1) xs
-    return v
-    where
-        n = tuplen xs
+    tupwrite v (n-1) boxer xs
+    return $ v
+        where
+        n = hlength xs
+
+class TupWrite hlist head box | hlist -> head where
+    tupwrite :: VM.MVector s box -> Int -> (head -> box) -> hlist -> ST s () 
+
+instance TupWrite (HList '[]) head box where
+    tupwrite v i boxer HNil = return ()
+    
+instance TupWrite (HList (x ': '[])) x box where
+    tupwrite v i boxer (x:::xs) = VM.write v i (boxer x)
+
+class TWrite hlist where
+    twrite :: VM.MVector s box -> Int -> (a -> box) -> hlist -> ST s ()
+    
+instance TWrite (HList '[]) where
+    twrite v i boxer HNil = return ()
+
+-- instance TWrite (HList (x ': '[])) where
+--     twrite v i boxer (x:::HNil) = VM.write v i (boxer x)
+
+
+
+-- instance (TupWrite (HList '[x1]) x1 box) => TupWrite (HList (x0 ': x1 ': '[])) x0 box where
+-- instance (TupWrite (HList '[x1]) x1 box) => TupWrite (HList (x0 ': x1 ': '[])) x0 box where
+--     tupwrite v i boxer (x:::xs) = VM.write v i (boxer x) >> tupwrite v i boxer xs
+
+-- instance (TupWrite (HList xs) t box) => TupWrite (HList (x ': xs)) x box where
+--     tupwrite v i boxer (x:::xs) = VM.write v i (boxer x) -- >> tupwrite v (i-1) (boxer :: t -> box) xs
+-- tupwrite :: VM.MVector s box -> Int -> (x -> box) -> HList t1 -> ST s () 
+-- tupwrite v i boxer (x:::xs) = VM.write v i undefined -- (boxer x)
+
+--     tupwrite v i boxer (b:::a) = VM.write v i (boxer a) >> tupwrite v (i-1) b
+
+class Boxable xs ys where
+    dobox :: xs -> ys
+    
+instance Boxable (HList '[]) (HList '[]) where
+    dobox xs = xs
+
+instance (Show x) => Boxable (HList (x ': xs)) (HList (ShowBox ': xs)) where
+    dobox (x:::xs) = (ShowBox x):::xs
+
+-- tup :: (TupWriter xs, TupLen xs) => (x -> box) -> xs -> Tuple box xs
+-- tup :: (TupLen xs, TupWriter xs (a->box) box) => (a -> box) -> xs -> Tuple box xs
+-- tup boxer xs = Tuple $ V.create $ do
+--     v <- VM.new n
+--     tupwrite v (n-1) boxer xs
+--     return v
+--     where
+--         n = tuplen xs
+
+-- tup boxer xs = Tuple $ V.create $ do
+--     v <- VM.new n
+--     tupwrite v (n-1) boxer xs
+--     return v
+--     where
+--         n = hlength xs
+--         tupwrite = undefined
+
+instance (Show box) => Show (Tuple box xs) where
+    show (Tuple vec) = "(tup $ "++go 0++")"
+        where
+            go i = if i < V.length vec {--1-}
+                then show (vec V.! i) ++ ":::" ++ go (i+1)
+                else "HNil"
 
 -------------------------------------------------------------------------------
 -- type classes
 
-class TupLen t where
-    tuplen :: t -> Int
+-- class TupLen t where
+--     tuplen :: t -> Int
+-- 
+-- instance (TupLen b) => TupLen (a ::: b) where
+--     tuplen (b ::: a) = 1 + tuplen b
+-- 
+-- instance TupLen b where
+--     tuplen b = 1
+-- 
+-- class TupWriter xs boxer box {-| xs -> first-} where
+--     tupwrite :: VM.MVector s box -> Int -> boxer -> xs -> ST s ()
+-- 
+-- instance TupWriter x (x->box) box where
+--     tupwrite v i boxer xs = VM.write v i (boxer xs)
 
-instance (TupLen b) => TupLen (a ::: b) where
-    tuplen (b ::: a) = 1 + tuplen b
-
-instance TupLen b where
-    tuplen b = 1
-
-class TupWriter t where
-    tupwrite :: VM.MVector s UnsafeBox -> Int -> t -> ST s ()
-
-instance (TupWriter b) => TupWriter (a:::b) where
-    tupwrite v i (b:::a) = VM.write v i (unsafeCoerce a) >> tupwrite v (i-1) b
-
-instance TupWriter b where
-    tupwrite v i b = VM.write v i (unsafeCoerce b)
+-- instance (TupWriter b c box) => TupWriter (a:::b) a box where
+--     tupwrite v i boxer (b:::a) = VM.write v i (boxer a) >> tupwrite v (i-1) b
 
 -------------------------------------------------------------------------------
 -- lens
 
-_i :: (SingI n) => Tuple (Replicate n a) -> Int -> a
-_i (Tuple vec) i = unsafeCoerce $ vec V.! i
-
-data GetIndex xs (n::Nat) a = GetIndex xs
+-- _i :: (SingI n) => Tuple (Replicate n a) -> Int -> a
+-- _i (Tuple vec) i = unsafeCoerce $ vec V.! i
+-- 
+-- data GetIndex xs (n::Nat) a = GetIndex xs
 
 -- getIndex :: xs -> Sing n -> a
 
@@ -120,34 +210,6 @@ first :: Simple Lens (a,b) a
 first f (a,b) = undefined
 -------------------------------------------------------------------------------
 -- showing
-
-data ShowIndex a = ShowIndex Int a
-
--- instance Show (ShowIndex (Tuple a) where
---     show a = ""
-    
--- instance (Show (ShowIndex (Tuple' xs))) => Show (NTuple' xs) where
---     show tup = "(tup " ++ (show $ ShowIndex ((len tup)-1) tup) ++ ")"
---         where
---             n = V.length (getvec tup)
--- --             n = fromIntegral $ fromSing (sing :: Sing n)    
-
-instance (Show (ShowIndex (Tuple a))) => Show (Tuple a) where
-    show a = "(tup $ "++(show $ ShowIndex (len-1) a)++")"
-        where
-            len = let (Tuple vec) = a in V.length vec
-
-instance 
-    ( Show a
-    , Show (ShowIndex (Tuple b))
-    ) => Show (ShowIndex (Tuple (a:::b))) where
-    show (ShowIndex i (Tuple vec)) = 
-        show (ShowIndex (i-1) (Tuple vec :: Tuple b))++":::"++show (unsafeCoerce (vec V.! i) :: a)
-    
-instance 
-    ( Show b
-    ) => Show (ShowIndex (Tuple b)) where
-    show (ShowIndex i (Tuple vec)) = show (unsafeCoerce (vec V.! i) :: b)
         
 
 -------------------------------------------------------------------------------
@@ -206,19 +268,17 @@ instance
 -- instance BoxTuple box (Tuple xs) (V.Vector box) where
 
 
-test :: (Num a) => Replicate n a -> Int
-test = undefined
 
 type family Map (f :: * -> *) (xs::[*]) :: [*]
 type instance Map f '[] = '[]
 type instance Map f (x ': xs) = (f x) ': (Map f xs)
 -- type instance Box (x:::xs) a = a x:::(Box xs a)
 
-type family Replicate (n::Nat) a
-type instance Replicate n a = Replicate' (ToNat1 n) a
-type family Replicate' (n::Nat1) a
-type instance Replicate' (Succ Zero) a = a
-type instance Replicate' (Succ (Succ xs)) a = a:::(Replicate' (Succ xs) a)
+-- type family Replicate (n::Nat) a
+-- type instance Replicate n a = Replicate' (ToNat1 n) a
+-- type family Replicate' (n::Nat1) a
+-- type instance Replicate' (Succ Zero) a = a
+-- type instance Replicate' (Succ (Succ xs)) a = a:::(Replicate' (Succ xs) a)
 
 type family Length (xs::[*]) :: Nat
 type instance Length '[] = 0
