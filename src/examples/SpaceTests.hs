@@ -3,9 +3,10 @@ import qualified Data.Vector as V
 import Data.Vector.Heterogenous
 
 
-vh size = V.generate size $ \i -> tup (ShowBox ()) $ (i::Int):::(i::Int):::(i::Int):::(i::Int):::(i::Int):::HNil
-vv size = V.generate size $ \i -> V.replicate 5 i
+ve size = V.generate size $ \i -> vec (ShowBox ()) $ (i::Int):::(i::Int):::(i::Int):::(i::Int):::(i::Int):::HNil
+vt size = V.generate size $ \i -> tup $ (i::Int):::(i::Int):::(i::Int):::(i::Int):::(i::Int):::HNil
+vv size = V.generate size $ \i -> V.fromList [i,i,i,i,i]
 
 main = do
-    print $ vh 10000
+    print $ vv 10000
 --     print vh
