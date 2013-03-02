@@ -30,8 +30,11 @@ import GHC.TypeLits
 import Unsafe.Coerce
 import Debug.Trace
 
+
 data Color = Red | Blue | Green | Purple
     deriving (Read,Show,Eq,Ord)
+
+data UnsafePtr = UnsafePtr
 
 data ShowBox = forall a. (Show a) => ShowBox a
 
@@ -75,70 +78,41 @@ instance (HLength (HList xs)) => HLength (HList (x ': xs)) where
 
 newtype Tuple box xs = Tuple (V.Vector box)
 
--- tup :: (HLength (HList xs), TupWrite xs x) => (x -> box) -> HList xs -> Tuple box xs
-tup boxer xs = Tuple $ V.create $ do
+tup :: (HLength xs, Downcast xs box) => xs -> Tuple box xs
+tup xs = Tuple $ V.create $ do
     v <- VM.new n
-    tupwrite v (n-1) boxer xs
+    tupwrite v (n-1) (downcast xs {-:: [box]-})
     return $ v
         where
-        n = hlength xs
+            n = hlength xs
+            tupwrite v i []     = return ()
+            tupwrite v i (x:xs) = VM.write v i x >> tupwrite v (i-1) xs
 
-class TupWrite hlist head box | hlist -> head where
-    tupwrite :: VM.MVector s box -> Int -> (head -> box) -> hlist -> ST s () 
+-- class TupWriter xs boxer box {-| xs -> first-} where
+--     tupwrite :: VM.MVector s box -> Int -> boxer -> xs -> ST s ()
+-- 
+-- instance TupWriter x (x->box) box where
+--     tupwrite v i boxer xs = VM.write v i (boxer xs)
 
-instance TupWrite (HList '[]) head box where
-    tupwrite v i boxer HNil = return ()
-    
-instance TupWrite (HList (x ': '[])) x box where
-    tupwrite v i boxer (x:::xs) = VM.write v i (boxer x)
-
-class TWrite hlist where
-    twrite :: VM.MVector s box -> Int -> (a -> box) -> hlist -> ST s ()
-    
-instance TWrite (HList '[]) where
-    twrite v i boxer HNil = return ()
-
--- instance TWrite (HList (x ': '[])) where
---     twrite v i boxer (x:::HNil) = VM.write v i (boxer x)
-
-
-
--- instance (TupWrite (HList '[x1]) x1 box) => TupWrite (HList (x0 ': x1 ': '[])) x0 box where
--- instance (TupWrite (HList '[x1]) x1 box) => TupWrite (HList (x0 ': x1 ': '[])) x0 box where
---     tupwrite v i boxer (x:::xs) = VM.write v i (boxer x) >> tupwrite v i boxer xs
-
--- instance (TupWrite (HList xs) t box) => TupWrite (HList (x ': xs)) x box where
---     tupwrite v i boxer (x:::xs) = VM.write v i (boxer x) -- >> tupwrite v (i-1) (boxer :: t -> box) xs
--- tupwrite :: VM.MVector s box -> Int -> (x -> box) -> HList t1 -> ST s () 
--- tupwrite v i boxer (x:::xs) = VM.write v i undefined -- (boxer x)
-
+-- instance (TupWriter b c box) => TupWriter (a:::b) a box where
 --     tupwrite v i boxer (b:::a) = VM.write v i (boxer a) >> tupwrite v (i-1) b
 
-class Boxable xs ys where
-    dobox :: xs -> ys
+class ConstraintBox box a where
+    box :: a -> box
+    unsafeUnbox :: box -> a
+
+instance (Show a) => ConstraintBox ShowBox a where
+    box a = ShowBox a
+    unsafeUnbox (ShowBox a) = unsafeCoerce a
     
-instance Boxable (HList '[]) (HList '[]) where
-    dobox xs = xs
+class Downcast h box where
+    downcast :: h -> [box]
 
-instance (Show x) => Boxable (HList (x ': xs)) (HList (ShowBox ': xs)) where
-    dobox (x:::xs) = (ShowBox x):::xs
+instance Downcast (HList '[]) a where
+    downcast HNil = []
 
--- tup :: (TupWriter xs, TupLen xs) => (x -> box) -> xs -> Tuple box xs
--- tup :: (TupLen xs, TupWriter xs (a->box) box) => (a -> box) -> xs -> Tuple box xs
--- tup boxer xs = Tuple $ V.create $ do
---     v <- VM.new n
---     tupwrite v (n-1) boxer xs
---     return v
---     where
---         n = tuplen xs
-
--- tup boxer xs = Tuple $ V.create $ do
---     v <- VM.new n
---     tupwrite v (n-1) boxer xs
---     return v
---     where
---         n = hlength xs
---         tupwrite = undefined
+instance (ConstraintBox box x, Downcast (HList xs) box) => Downcast (HList (x ': xs)) box where
+    downcast (x:::xs) = (box x):(downcast xs)
 
 instance (Show box) => Show (Tuple box xs) where
     show (Tuple vec) = "(tup $ "++go 0++")"
