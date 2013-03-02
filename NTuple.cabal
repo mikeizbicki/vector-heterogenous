@@ -1,8 +1,8 @@
-Name:                NTuple
+Name:                vector-heterogenous
 Version:             0.0.1
-Synopsis:            Working with tuples of arbitrary size/type
+Synopsis:            A type-safe library for vectors whose elements can be of any type, or any type satisfying some constraints
 Description:         
-Category:            Control, Data
+Category:            Data, Data Structures
 License:             GPL
 --License-file:        LICENSE
 Author:              Mike izbicki
@@ -14,6 +14,8 @@ bug-reports:         http://github.com/mikeizbicki/NTuple/issues
 
 Library
     Build-Depends:      
+        base                        >= 3 && < 5,
+        vector                      >= 0.9
         
     hs-source-dirs:     src
     ghc-options:        
@@ -21,5 +23,6 @@ Library
         -O2 
         -- -fllvm
     Exposed-modules:
-        Data.NTuple
+        Data.Vector.Heterogenous
+        Data.Vector.Heterogenous.HList
         
