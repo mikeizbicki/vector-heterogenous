@@ -14,7 +14,8 @@
 module Data.Vector.Heterogenous.HList
     where
 
-import Data.Semigroup
+-- import Data.Semigroup
+import Data.Monoid
 import GHC.TypeLits
 import Unsafe.Coerce
 
@@ -32,10 +33,17 @@ instance Show (HList '[]) where
 instance (Show x, Show (HList xs)) => Show (HList (x ': xs)) where
     show (x:::xs) = show x ++":::"++show xs
     
-instance Semigroup (HList '[]) where
-    HNil <> HNil = HNil
-instance (Semigroup x, Semigroup (HList xs)) => Semigroup (HList (x ': xs)) where
-    (x:::xs)<>(y:::ys) = (x<>y):::(xs<>ys)
+-- instance Semigroup (HList '[]) where
+--     HNil <> HNil = HNil
+-- instance (Semigroup x, Semigroup (HList xs)) => Semigroup (HList (x ': xs)) where
+--     (x:::xs)<>(y:::ys) = (x<>y):::(xs<>ys)
+
+instance Monoid (HList '[]) where
+    mempty = HNil
+    HNil `mappend` HNil = HNil
+instance (Monoid x, Monoid (HList xs)) => Monoid (HList (x ': xs)) where
+    mempty = mempty:::mempty
+    (x:::xs) `mappend` (y:::ys) = (x `mappend` y):::(xs `mappend` ys)
 
 class HLength xs where
     hlength :: xs -> Int

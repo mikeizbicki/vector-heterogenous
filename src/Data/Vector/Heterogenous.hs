@@ -20,7 +20,8 @@ module Data.Vector.Heterogenous
     )
     where
 
-import Data.Semigroup
+import Data.Monoid
+-- import Data.Semigroup
 import qualified Data.Vector as V
 import qualified Data.Vector.Mutable as VM
 import qualified Data.Vector.Generic as G
@@ -56,43 +57,42 @@ vec box xs = HVector $ V.create $ do
             vecwrite v i []     = return ()
             vecwrite v i (x:xs) = (seq x $ VM.write v i x) >> vecwrite v (i-1) xs
 
--- instance Semigroup (HVector box '[]) where
---     v1 <> v2 = v1
-    
-newtype Indexer xs (i::Nat) = Indexer xs
+data Indexer xs = Indexer !xs !Int
 
-toHList :: HListBuilder (Indexer (HVector box xs) 0) ys => HVector box xs -> ys
-toHList hv = buildHList $ mkIndexer hv
-
-mkIndexer :: HVector box xs -> Indexer (HVector box xs) 0
-mkIndexer hv = Indexer hv
+toHList :: HListBuilder (Indexer (HVector box xs)) ys => HVector box xs -> ys
+toHList hv = buildHList $ Indexer hv (V.length (getvec hv) -1)
 
 class HListBuilder xs ys | xs -> ys where
     buildHList :: xs -> ys
     
-instance HListBuilder (Indexer (HVector box '[]) i) (HList '[]) where
+instance HListBuilder (Indexer (HVector box '[])) (HList '[]) where
     buildHList _ = HNil
 
 instance
     ( ConstraintBox box x
-    , HListBuilder (Indexer (HVector box xs) (1+i)) (HList xs)
-    , SingI i
-    ) => HListBuilder (Indexer (HVector box (x ': xs)) i) (HList (x ': xs)) 
+    , HListBuilder (Indexer (HVector box xs)) (HList xs)
+    ) => HListBuilder (Indexer (HVector box (x ': xs))) (HList (x ': xs)) 
         where
-    buildHList (Indexer (HVector v)) = 
-        (unsafeUnbox $ v V.! i):::(buildHList (Indexer $ HVector v :: Indexer (HVector box xs) (1+i))) 
-        where
-            i = fromIntegral $ fromSing (sing :: Sing i)
-
--- instance (SingI a, SingI b) => SingI (a+b)
---     sing = (fromSing (sing::a))+(fromSing (sing::b))
-
--- toHList :: HVector box xs -> HList xs
--- toHList 
+    buildHList (Indexer (HVector v) i) = 
+        (unsafeUnbox $ v V.! i):::(buildHList (Indexer (HVector v) (i-1) :: Indexer (HVector box xs))) 
     
-instance Semigroup (HVector box xs) where
-    v1 <> v2 = undefined
+{-instance 
+    ( Semigroup (HList xs)
+    , Downcast (HList xs) box
+    , HLength (HList xs)
+    , HListBuilder (Indexer (HVector box xs)) (HList xs)
+    ) => Semigroup (HVector box xs) where
+    v1 <> v2 = vec (undefined::box) $ (toHList v1)<>(toHList v2)-}
     
+instance 
+    ( Monoid (HList xs)
+    , Downcast (HList xs) box
+    , HLength (HList xs)
+    , HListBuilder (Indexer (HVector box xs)) (HList xs)
+    ) => Monoid (HVector box xs) where
+    mempty = vec (undefined::box) $ mempty
+    v1 `mappend` v2 = vec (undefined::box) $ (toHList v1) `mappend` (toHList v2)
+
 -- class View vec i ret | vec i -> ret where
 --     view :: vec -> i -> ret
 --     
