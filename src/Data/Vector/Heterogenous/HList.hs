@@ -1,3 +1,4 @@
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE DataKinds #-}
@@ -13,6 +14,7 @@
 module Data.Vector.Heterogenous.HList
     where
 
+import Data.Semigroup
 import GHC.TypeLits
 import Unsafe.Coerce
 
@@ -27,16 +29,18 @@ infixr 5 :::
 
 instance Show (HList '[]) where
     show _ = "HNil"
-    
 instance (Show x, Show (HList xs)) => Show (HList (x ': xs)) where
     show (x:::xs) = show x ++":::"++show xs
+    
+instance Semigroup (HList '[]) where
+    HNil <> HNil = HNil
+instance (Semigroup x, Semigroup (HList xs)) => Semigroup (HList (x ': xs)) where
+    (x:::xs)<>(y:::ys) = (x<>y):::(xs<>ys)
 
 class HLength xs where
     hlength :: xs -> Int
-    
 instance HLength (HList '[]) where
     hlength _ = 0
-    
 instance (HLength (HList xs)) => HLength (HList (x ': xs)) where
     hlength (x:::xs) = 1+hlength xs
 
@@ -93,11 +97,17 @@ type instance Reverse xs = MoveR xs '[]
 type family (xs::[*]) ++ (ys::[*]) :: [*]
 type instance xs ++ ys = MoveR (Reverse xs) ys
 
-type family (:!) (xs::[a]) (i::Nat1) :: a
-type instance (:!) (x ': xs) Zero = x
-type instance (:!) (x ': xs) (Succ i) = xs :! i
+type family (:!) (xs::[a]) (i::Nat) :: a
+type instance (:!) xs n = Index xs (ToNat1 n)
+
+type family Index (xs::[a]) (i::Nat1) :: a
+type instance Index (x ': xs) Zero = x
+type instance Index (x ': xs) (Succ i) = Index xs i
+
+---------------------------------------
 
 data Nat1 = Zero | Succ Nat1
+
 type family FromNat1 (n :: Nat1) :: Nat
 type instance FromNat1 Zero     = 0
 type instance FromNat1 (Succ n) = 1 + FromNat1 n

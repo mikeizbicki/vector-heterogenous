@@ -1,33 +1,26 @@
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE FunctionalDependencies #-}
-{-# LANGUAGE ConstraintKinds #-}
-
+{-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE KindSignatures #-}
-{-# LANGUAGE ExistentialQuantification #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeFamilies #-}
-
 {-# LANGUAGE PolyKinds #-}
--- {-# LANGUAGE DatatypeContexts #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module Data.Vector.Heterogenous
-    ( ExistentialVector(..)
+    ( HVector(..)
     , vec
-    , Tuple(..)
-    , tup
     , module Data.Vector.Heterogenous.HList
+    , module Data.Vector.Heterogenous.Unsafe
     )
     where
 
+import Data.Semigroup
 import qualified Data.Vector as V
 import qualified Data.Vector.Mutable as VM
 import qualified Data.Vector.Generic as G
@@ -37,14 +30,15 @@ import Unsafe.Coerce
 import Debug.Trace
 
 import Data.Vector.Heterogenous.HList
+import Data.Vector.Heterogenous.Unsafe
 
 -------------------------------------------------------------------------------
--- ExistentialVector
+-- Vector
 
-newtype ExistentialVector box xs = ExistentialVector { getvec :: V.Vector box }
+newtype HVector box (xs::[a]) = HVector { getvec :: V.Vector box }
 
-instance (Show box) => Show (ExistentialVector box xs) where
-    show (ExistentialVector vec) = "(vec "++boxname++" $ "++(go $ n-1)++"HNil)"
+instance (Show box) => Show (HVector box xs) where
+    show (HVector vec) = "(vec "++boxname++" $ "++(go $ n-1)++"HNil)"
         where
             boxname = "(ShowBox ())"
             n = V.length vec
@@ -52,57 +46,59 @@ instance (Show box) => Show (ExistentialVector box xs) where
                 then show (vec V.! i)++":::"++go (i-1)
                 else ""
 
-vec :: (HLength xs, Downcast xs box) => box -> xs -> ExistentialVector box xs
-vec box xs = ExistentialVector $ V.create $ do
+vec :: (HLength (HList xs), Downcast (HList xs) box) => box -> HList xs -> HVector box (xs::[*])
+vec box xs = HVector $ V.create $ do
     v <- VM.new n
-    tupwrite v (n-1) (downcastAs box xs)
+    vecwrite v (n-1) (downcastAs box xs)
     return $ v
         where
             n = hlength xs
-            tupwrite v i []     = return ()
-            tupwrite v i (x:xs) = (seq x $ VM.write v i x) >> tupwrite v (i-1) xs
+            vecwrite v i []     = return ()
+            vecwrite v i (x:xs) = (seq x $ VM.write v i x) >> vecwrite v (i-1) xs
 
--------------------------------------------------------------------------------
--- UnsafeVector
-
-data UnsafeBox = UnsafeBox
-    deriving (Read,Show)
-
-newtype Tuple xs = Tuple (V.Vector UnsafeBox)
-
-tup :: (TupleWriter a, HLength a) => a -> Tuple a
-tup xs = Tuple $ V.create $ do
-    v <- VM.new n
-    tupwrite v (n-1) xs
---     tupwrite v (n-1) xs
-    return v
-    where
-        n = hlength xs
-        
-class TupleWriter t where
-    tupwrite :: VM.MVector s UnsafeBox -> Int -> t -> ST s ()
-
-instance (TupleWriter (HList xs)) => TupleWriter (HList (x ': xs)) where
-    tupwrite v i (x:::xs) = VM.write v i (unsafeCoerce x) >> tupwrite v (i-1) xs
-
-instance TupleWriter (HList '[]) where
-    tupwrite v i b = return ()
-
-data ShowIndex a = ShowIndex Int a
-
-instance (Show (ShowIndex (Tuple a))) => Show (Tuple a) where
-    show a = "(tup $ "++(show $ ShowIndex (len-1) a)++")"
-        where
-            len = let (Tuple vec) = a in V.length vec
-
-instance 
-    ( Show x
-    , Show (ShowIndex (Tuple (HList xs)))
-    ) => Show (ShowIndex (Tuple (HList (x ': xs)))) where
-    show (ShowIndex i (Tuple vec)) = 
-        show (unsafeCoerce (vec V.! i) :: x)++":::"++
-        show (ShowIndex (i-1) (Tuple vec :: Tuple (HList xs)))
+-- instance Semigroup (HVector box '[]) where
+--     v1 <> v2 = v1
     
-instance Show (ShowIndex (Tuple (HList '[]))) where
-    show (ShowIndex i (Tuple vec)) = "HNil"
-        
+newtype Indexer xs (i::Nat) = Indexer xs
+
+toHList :: HListBuilder (Indexer (HVector box xs) 0) ys => HVector box xs -> ys
+toHList hv = buildHList $ mkIndexer hv
+
+mkIndexer :: HVector box xs -> Indexer (HVector box xs) 0
+mkIndexer hv = Indexer hv
+
+class HListBuilder xs ys | xs -> ys where
+    buildHList :: xs -> ys
+    
+instance HListBuilder (Indexer (HVector box '[]) i) (HList '[]) where
+    buildHList _ = HNil
+
+instance
+    ( ConstraintBox box x
+    , HListBuilder (Indexer (HVector box xs) (1+i)) (HList xs)
+    , SingI i
+    ) => HListBuilder (Indexer (HVector box (x ': xs)) i) (HList (x ': xs)) 
+        where
+    buildHList (Indexer (HVector v)) = 
+        (unsafeUnbox $ v V.! i):::(buildHList (Indexer $ HVector v :: Indexer (HVector box xs) (1+i))) 
+        where
+            i = fromIntegral $ fromSing (sing :: Sing i)
+
+-- instance (SingI a, SingI b) => SingI (a+b)
+--     sing = (fromSing (sing::a))+(fromSing (sing::b))
+
+-- toHList :: HVector box xs -> HList xs
+-- toHList 
+    
+instance Semigroup (HVector box xs) where
+    v1 <> v2 = undefined
+    
+-- class View vec i ret | vec i -> ret where
+--     view :: vec -> i -> ret
+--     
+-- instance View (HVector box (x ': xs)) (Sing 0) 
+-- 
+-- view :: (SingI n, ConstraintBox box (Index xs (ToNat1 n))) => HVector box xs -> Sing (n::Nat) -> xs :! n
+-- view (HVector v) _ = unsafeUnbox $ v V.! n
+--     where
+--         n = fromIntegral $ (sing :: Sing n)

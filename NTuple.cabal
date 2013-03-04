@@ -25,4 +25,5 @@ Library
     Exposed-modules:
         Data.Vector.Heterogenous
         Data.Vector.Heterogenous.HList
+        Data.Vector.Heterogenous.Unsafe
         
