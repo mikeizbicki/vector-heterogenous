@@ -8,5 +8,5 @@ vt size = V.generate size $ \i -> tup $ (i::Int):::(i::Int):::(i::Int):::(i::Int
 vv size = V.generate size $ \i -> V.fromList [i,i,i,i,i]
 
 main = do
-    print $ vv 10000
+    print $ fmap getvec $ ve 10000
 --     print vh
