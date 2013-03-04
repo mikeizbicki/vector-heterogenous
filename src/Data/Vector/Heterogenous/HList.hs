@@ -87,22 +87,26 @@ instance (Show a) => ConstraintBox ShowBox a where
 -------------------------------------------------------------------------------
 -- type functions
 
-type family Map (f :: * -> *) (xs::[*]) :: [*]
+type family Distribute (xs::[a->b]) (t::a) :: [b]
+type instance Distribute '[] a = '[]
+type instance Distribute (x ': xs) a = (x a) ': (Distribute xs a)
+
+type family Map (f :: a -> a) (xs::[a]) :: [a]
 type instance Map f '[] = '[]
 type instance Map f (x ': xs) = (f x) ': (Map f xs)
 
-type family Length (xs::[*]) :: Nat
+type family Length (xs::[a]) :: Nat
 type instance Length '[] = 0
 type instance Length (a ': xs) = 1 + (Length xs)
 
-type family MoveR (xs::[*]) (ys::[*]) :: [*]
+type family MoveR (xs::[a]) (ys::[a]) :: [a]
 type instance MoveR '[] ys = ys
 type instance MoveR (x ': xs) ys = MoveR xs (x ': ys)
 
-type family Reverse (xs::[*]) :: [*]
+type family Reverse (xs::[a]) :: [a]
 type instance Reverse xs = MoveR xs '[]
 
-type family (xs::[*]) ++ (ys::[*]) :: [*]
+type family (xs::[a]) ++ (ys::[a]) :: [a]
 type instance xs ++ ys = MoveR (Reverse xs) ys
 
 type family (:!) (xs::[a]) (i::Nat) :: a

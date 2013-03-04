@@ -31,13 +31,14 @@ import GHC.TypeLits
 import Data.Vector.Heterogenous.HList
 import Data.Vector.Heterogenous.Unsafe
 
+
 -------------------------------------------------------------------------------
 -- Vector
 
 newtype HVector box (xs::[a]) = HVector { getvec :: V.Vector box }
 
 instance (Show box) => Show (HVector box xs) where
-    show (HVector vec) = "(vec "++boxname++" $ "++(go $ n-1)++"HNil)"
+    show (HVector vec) = "vec "++boxname++" $ "++(go $ n-1)++"HNil"
         where
             boxname = "(ShowBox ())"
             n = V.length vec
