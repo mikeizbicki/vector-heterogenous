@@ -27,8 +27,6 @@ import qualified Data.Vector.Mutable as VM
 import qualified Data.Vector.Generic as G
 import GHC.ST
 import GHC.TypeLits
-import Unsafe.Coerce
-import Debug.Trace
 
 import Data.Vector.Heterogenous.HList
 import Data.Vector.Heterogenous.Unsafe
