@@ -11,6 +11,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE EmptyDataDecls #-}
 
 -- | Heterogenous vectors.  For more info on heterogenous collections, see <http://www.haskell.org/haskellwiki/Heterogenous_collections>
 module Data.Vector.Heterogenous
@@ -41,7 +42,7 @@ newtype HVector box (xs::[a]) = HVector { getvec :: V.Vector box }
 instance (Show box) => Show (HVector box xs) where
     show (HVector vec) = "vec "++boxname++" $ "++(go $ n-1)++"HNil"
         where
-            boxname = "(ShowBox ())"
+            boxname = "ShowBox"
             n = V.length vec
             go i = if i >= 0
                 then show (vec V.! i)++":::"++go (i-1)

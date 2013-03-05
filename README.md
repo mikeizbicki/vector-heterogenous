@@ -1,6 +1,6 @@
 # HVector
 
-This is a package for type safe heterogenous vectors, or `HVector`s.  This library was developed to allow the HLearn library to handle multivariate distributions---each data point is an HVector, and the trained multivariate distribution will also be an HVector.  This might be of more general interest, however, and so has been separated into its own library.  It is called vector-heterogenous on hackage.
+This is a package for type safe heterogenous vectors, or `HVector`s.  This library was developed to allow the HLearn library to handle multivariate distributions---each data point is an HVector, and the trained multivariate distribution will also be an HVector.  This might be of more general interest, however, and so has been separated into its own library.  It is called [vector-heterogenous](http://hackage.haskell.org/package/vector-heterogenous) on hackage.
 
 ## Construction
 

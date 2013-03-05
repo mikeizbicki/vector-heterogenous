@@ -12,6 +12,24 @@
 {-# LANGUAGE UndecidableInstances #-}
 
 module Data.Vector.Heterogenous.HList
+    ( 
+    -- * Heterogenous List
+    HList (..)
+    , HLength (..)
+    
+    -- * Downcasting
+    , ConstraintBox (..)
+    , Downcast (..)
+    
+    -- * Boxes
+    , ShowBox
+    , AnyBox
+    
+    -- * Type functions
+    , Nat1(..)
+    , ToNat1
+    , FromNat1
+    )
     where
 
 -- import Data.Semigroup
@@ -22,6 +40,7 @@ import Unsafe.Coerce
 -------------------------------------------------------------------------------
 -- HList
 
+-- | The heterogenous list
 data HList :: [*] -> * where
   HNil :: HList '[]
   (:::) :: t -> HList ts -> HList (t ': ts)
@@ -44,6 +63,8 @@ instance Monoid (HList '[]) where
 instance (Monoid x, Monoid (HList xs)) => Monoid (HList (x ': xs)) where
     mempty = mempty:::mempty
     (x:::xs) `mappend` (y:::ys) = (x `mappend` y):::(xs `mappend` ys)
+
+-- | Used only for the HList class to determine its length
 
 class HLength xs where
     hlength :: xs -> Int
@@ -74,6 +95,10 @@ instance (ConstraintBox box x, Downcast (HList xs) box) => Downcast (HList (x ':
 -------------------------------------------------------------------------------
 -- boxes
 
+-- | Most generic box, can be used on any type.
+data AnyBox = forall a. AnyBox !a
+
+-- | Use this box unless you know for certain that your types won't have a show instance.
 data ShowBox = forall a. (Show a) => ShowBox !a
 
 instance Show ShowBox where
