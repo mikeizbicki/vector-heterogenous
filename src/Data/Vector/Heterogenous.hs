@@ -12,6 +12,7 @@
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE UndecidableInstances #-}
 
+-- | Heterogenous vectors.  For more info on heterogenous collections, see <http://www.haskell.org/haskellwiki/Heterogenous_collections>
 module Data.Vector.Heterogenous
     ( HVector(..)
     , vec
@@ -45,6 +46,8 @@ instance (Show box) => Show (HVector box xs) where
             go i = if i >= 0
                 then show (vec V.! i)++":::"++go (i-1)
                 else ""
+
+-- | creates an "HVector" from an "HList".  For example:
 
 vec :: (HLength (HList xs), Downcast (HList xs) box) => box -> HList xs -> HVector box (xs::[*])
 vec box xs = HVector $ V.create $ do
@@ -92,12 +95,18 @@ instance
     mempty = vec (undefined::box) $ mempty
     v1 `mappend` v2 = vec (undefined::box) $ (toHList v1) `mappend` (toHList v2)
 
--- class View vec i ret | vec i -> ret where
---     view :: vec -> i -> ret
---     
--- instance View (HVector box (x ': xs)) (Sing 0) 
--- 
--- view :: (SingI n, ConstraintBox box (Index xs (ToNat1 n))) => HVector box xs -> Sing (n::Nat) -> xs :! n
--- view (HVector v) _ = unsafeUnbox $ v V.! n
---     where
---         n = fromIntegral $ (sing :: Sing n)
+-------------------------------------------------------------------------------
+-- Lens
+
+class View vec i ret | vec i -> ret where
+    view :: vec -> i -> ret
+    
+{-instance View (HVector box (xs)) (Sing n) (xs :! n) where
+    view (HVector v) _ = unsafeUnbox $ v V.! n
+        where
+            n = fromIntegral $ fromSing (sing :: Sing n) :: Int-}
+            
+-- instance (ConstraintBox box (xs :! n), SingI n) => View (HVector box (xs)) (Sing (n::Nat)) (xs :! n) where
+--     view (HVector v) _ = unsafeUnbox $ v V.! n
+--         where
+--             n = fromIntegral $ fromSing (sing :: Sing n)

@@ -74,7 +74,7 @@ instance (ConstraintBox box x, Downcast (HList xs) box) => Downcast (HList (x ':
 -------------------------------------------------------------------------------
 -- boxes
 
-data ShowBox = forall a. (Show a) => ShowBox a
+data ShowBox = forall a. (Show a) => ShowBox !a
 
 instance Show ShowBox where
     show (ShowBox a) = show a
@@ -90,6 +90,12 @@ instance (Show a) => ConstraintBox ShowBox a where
 type family Distribute (xs::[a->b]) (t::a) :: [b]
 type instance Distribute '[] a = '[]
 type instance Distribute (x ': xs) a = (x a) ': (Distribute xs a)
+
+type family Replicate (x::a) (n::Nat) :: [a]
+type instance Replicate x n = Replicate1 x (ToNat1 n)
+type family Replicate1 (x::a) (n::Nat1) :: [a]
+type instance Replicate1 x Zero = '[]
+type instance Replicate1 x (Succ n) = x ': (Replicate1 x n)
 
 type family Map (f :: a -> a) (xs::[a]) :: [a]
 type instance Map f '[] = '[]
