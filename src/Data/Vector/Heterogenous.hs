@@ -49,7 +49,7 @@ instance (Show box) => Show (HVector box xs) where
 
 -- | creates an "HVector" from an "HList".  For example:
 
-vec :: (HLength (HList xs), Downcast (HList xs) box) => box -> HList xs -> HVector box (xs::[*])
+vec :: (HLength (HList xs), Downcast (HList xs) box) => (a->box) -> HList xs -> HVector box (xs::[*])
 vec box xs = HVector $ V.create $ do
     v <- VM.new n
     vecwrite v (n-1) (downcastAs box xs)
@@ -92,14 +92,30 @@ instance
     , HLength (HList xs)
     , HListBuilder (Indexer (HVector box xs)) (HList xs)
     ) => Monoid (HVector box xs) where
-    mempty = vec (undefined::box) $ mempty
-    v1 `mappend` v2 = vec (undefined::box) $ (toHList v1) `mappend` (toHList v2)
+    mempty = vec (undefined::a->box) $ mempty
+    v1 `mappend` v2 = vec (undefined::a->box) $ (toHList v1) `mappend` (toHList v2)
 
 -------------------------------------------------------------------------------
 -- Lens
 
+data Empty a
+
 class View vec i ret | vec i -> ret where
     view :: vec -> i -> ret
+        
+instance (ConstraintBox box x) => View (Indexer (HVector box (x ': xs))) (Empty Zero) x where
+    view (Indexer (HVector v) i) _ = unsafeUnbox $ v V.! i
+    
+instance (ConstraintBox box ret, View (Indexer (HVector box xs)) (Empty n) ret) => View (Indexer (HVector box (x ': xs))) (Empty (Succ n)) ret where
+    view (Indexer (HVector v) i) _ = unsafeUnbox $ v V.! i
+    
+instance 
+    ( View (Indexer (HVector box xs)) (Empty (ToNat1 n)) ret
+    , SingI n
+    ) => View (HVector box xs) (Sing n) ret where
+    view hv _ = Indexer hv (V.length (getvec hv) -n-1) `view` (undefined::Empty (ToNat1 n))
+        where
+            n = fromIntegral $ fromSing (sing :: Sing n)
     
 {-instance View (HVector box (xs)) (Sing n) (xs :! n) where
     view (HVector v) _ = unsafeUnbox $ v V.! n

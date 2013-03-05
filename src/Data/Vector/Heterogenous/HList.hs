@@ -62,7 +62,7 @@ class ConstraintBox box a where
 class Downcast h box where
     downcast :: h -> [box]
     
-    downcastAs :: box -> h -> [box]
+    downcastAs :: (a->box) -> h -> [box]
     downcastAs box = downcast
 
 instance Downcast (HList '[]) a where
