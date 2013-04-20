@@ -17,6 +17,14 @@
 module Data.Vector.Heterogenous
     ( HVector(..)
     , vec
+    
+    -- * Construction helpers
+    , ValidHVector(..)
+    , toHList
+--     , HListBuilder(..)
+--     , Indexer (..)
+    
+    -- * Modules
     , module Data.Vector.Heterogenous.HList
     , module Data.Vector.Heterogenous.Unsafe
     )
@@ -60,6 +68,23 @@ vec box xs = HVector $ V.create $ do
             vecwrite v i []     = return ()
             vecwrite v i (x:xs) = (seq x $ VM.write v i x) >> vecwrite v (i-1) xs
 
+-------------------------------------------------------------------------------
+
+
+class 
+    ( Downcast (HList xs) box
+    , HLength (HList xs)
+    , HListBuilder (Indexer (HVector box xs))  (HList xs)
+    ) => ValidHVector box xs
+
+instance 
+    ( Downcast (HList xs) box
+    , HLength (HList xs)
+    , HListBuilder (Indexer (HVector box xs))  (HList xs)
+    ) => ValidHVector box xs
+
+---------------------------------------
+
 data Indexer xs = Indexer !xs !Int
 
 toHList :: HListBuilder (Indexer (HVector box xs)) ys => HVector box xs -> ys
@@ -78,14 +103,6 @@ instance
         where
     buildHList (Indexer (HVector v) i) = 
         (unsafeUnbox $ v V.! i):::(buildHList (Indexer (HVector v) (i-1) :: Indexer (HVector box xs))) 
-    
-{-instance 
-    ( Semigroup (HList xs)
-    , Downcast (HList xs) box
-    , HLength (HList xs)
-    , HListBuilder (Indexer (HVector box xs)) (HList xs)
-    ) => Semigroup (HVector box xs) where
-    v1 <> v2 = vec (undefined::box) $ (toHList v1)<>(toHList v2)-}
     
 instance 
     ( Monoid (HList xs)
@@ -117,13 +134,3 @@ instance
     view hv _ = Indexer hv (V.length (getvec hv) -n-1) `view` (undefined::Empty (ToNat1 n))
         where
             n = fromIntegral $ fromSing (sing :: Sing n)
-    
-{-instance View (HVector box (xs)) (Sing n) (xs :! n) where
-    view (HVector v) _ = unsafeUnbox $ v V.! n
-        where
-            n = fromIntegral $ fromSing (sing :: Sing n) :: Int-}
-            
--- instance (ConstraintBox box (xs :! n), SingI n) => View (HVector box (xs)) (Sing (n::Nat)) (xs :! n) where
---     view (HVector v) _ = unsafeUnbox $ v V.! n
---         where
---             n = fromIntegral $ fromSing (sing :: Sing n)

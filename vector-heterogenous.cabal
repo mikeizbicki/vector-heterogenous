@@ -1,5 +1,5 @@
 Name:                vector-heterogenous
-Version:             0.0.1
+Version:             0.1.0
 Synopsis:            A type-safe library for vectors whose elements can be of any type, or any type satisfying some constraints
 Description:         
 Category:            Data, Data Structures

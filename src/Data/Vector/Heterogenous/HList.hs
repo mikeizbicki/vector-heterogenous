@@ -16,17 +16,41 @@ module Data.Vector.Heterogenous.HList
     -- * Heterogenous List
     HList (..)
     , HLength (..)
+    , List2HList (..)
+    , HList2List (..)
+    , HTake1 (..)
+    , HDrop1 (..)
     
     -- * Downcasting
     , ConstraintBox (..)
     , Downcast (..)
     
     -- * Boxes
-    , ShowBox
-    , AnyBox
+    , ShowBox (..)
+    , AnyBox (..)
     
     -- * Type functions
+    
+    -- ** HList
+    , HCons (..)
+    , UnHList (..)
+    , HAppend
+    
+    -- ** Type Lists
+    , Distribute (..)
+    , Replicate (..)
+    , Map (..)
+    , Reverse (..)
+    , (:!) (..)
+    , (++) (..)
+    , ($) (..)
+    , Concat (..)
+    , Length (..)
+    , Length1 (..)
+    
+    -- ** Type Nats
     , Nat1(..)
+    , Nat1Box(..)
     , ToNat1
     , FromNat1
     )
@@ -42,8 +66,8 @@ import Unsafe.Coerce
 
 -- | The heterogenous list
 data HList :: [*] -> * where
-  HNil :: HList '[]
-  (:::) :: t -> HList ts -> HList (t ': ts)
+    HNil :: HList '[]
+    (:::) :: t -> HList ts -> HList (t ': ts)
   
 infixr 5 :::
 
@@ -51,11 +75,21 @@ instance Show (HList '[]) where
     show _ = "HNil"
 instance (Show x, Show (HList xs)) => Show (HList (x ': xs)) where
     show (x:::xs) = show x ++":::"++show xs
+
+instance Eq (HList '[]) where
+    xs==ys = True
+instance (Eq x, Eq (HList xs)) => Eq (HList (x ': xs)) where
+    (x:::xs)==(y:::ys) = (x==y)&&(xs==ys)
     
--- instance Semigroup (HList '[]) where
---     HNil <> HNil = HNil
--- instance (Semigroup x, Semigroup (HList xs)) => Semigroup (HList (x ': xs)) where
---     (x:::xs)<>(y:::ys) = (x<>y):::(xs<>ys)
+instance Ord (HList '[]) where
+    compare HNil HNil = EQ
+instance (Ord x, Ord (HList xs)) => Ord (HList (x ': xs)) where
+    compare (x:::xs) (y:::ys) = 
+        case compare x y of
+             EQ -> compare xs ys
+             LT -> LT
+             GT -> GT
+                                     
 
 instance Monoid (HList '[]) where
     mempty = HNil
@@ -72,6 +106,57 @@ instance HLength (HList '[]) where
     hlength _ = 0
 instance (HLength (HList xs)) => HLength (HList (x ': xs)) where
     hlength (x:::xs) = 1+hlength xs
+
+-- | For converting into a list
+
+class HList2List xs a | xs -> a where
+    hlist2list :: xs -> [a]
+instance HList2List (HList '[]) a where
+    hlist2list xs = []
+instance (HList2List (HList xs) a) => HList2List (HList (a ':xs)) a where
+    hlist2list (x:::xs) = x:(hlist2list xs)    
+
+-- | For construction from lists
+
+class List2HList x xs where
+    list2hlist :: [x] -> HList (x ': xs)
+    
+instance List2HList x '[] where
+    list2hlist []       = error "List2HList x HNil: cannot append empty list"
+    list2hlist (x:[])   = x:::HNil
+    list2hlist _        = error "List2HList x HNil: too many elements in list"
+
+instance (List2HList x xs) => List2HList x (x ': xs) where
+    list2hlist []       = error "List2HList x HNil: cannot append empty list"
+    list2hlist (x:xs)   = x:::(list2hlist xs)
+
+-- | Equivalent to prelude's "drop"
+class HDrop1 n xs1 xs2 | n xs1 -> xs2 where
+    hdrop1 :: n -> xs1 -> xs2
+    
+instance HDrop1 (Nat1Box Zero) (HList xs1) (HList xs1) where
+    hdrop1 n xs = xs
+    
+instance (HDrop1 (Nat1Box n) (HList xs1) (HList xs2)) => 
+    HDrop1 (Nat1Box (Succ n)) (HList (x ': xs1)) (HList xs2) where
+    hdrop1 _ (x:::xs) = hdrop1 (Nat1Box :: Nat1Box n) xs
+
+-- | Equivalent to prelude's "take"
+class HTake1 n xs1 xs2 | n xs1 -> xs2 where
+    htake1 :: n -> xs1 -> xs2
+
+instance HTake1 (Nat1Box Zero) (HList xs1) (HList '[]) where
+    htake1 _ _ = HNil
+    
+instance (HTake1 (Nat1Box n) (HList xs1) (HList xs2)) => HTake1 (Nat1Box (Succ n)) (HList (x ': xs1)) (HList (x ': xs2)) where
+    htake1 _ (x:::xs) = x:::(htake1 (Nat1Box :: Nat1Box n) xs)
+    
+-- instance (HTake1 (Nat1Box (ToNat1 n)) (HList xs1) (HList xs2)) => HTake1 (Sing n) (HList xs1) (HList xs2) where
+--     htake1 _ xs = htake1 (Nat1Box :: Nat1Box (ToNat1 n)) xs
+
+-- type family HTake (n::Nat) xs
+-- type instance HTake n (HList xs) = HList (Take n xs)
+
 
 -------------------------------------------------------------------------------
 -- downcasting HList -> []
@@ -112,33 +197,46 @@ instance (Show a) => ConstraintBox ShowBox a where
 -------------------------------------------------------------------------------
 -- type functions
 
+
+type family HCons (x :: *) (xs :: *) :: *
+type instance HCons x (HList xs) = HList (x ': xs)
+
+type family UnHList (xs :: *) :: [a]
+type instance UnHList (HList xs) = xs
+
+type family HAppend xs ys :: *
+type instance HAppend (HList xs) (HList ys) = HList (xs ++ ys)
+
+---------------------------------------
+
 type family Distribute (xs::[a->b]) (t::a) :: [b]
 type instance Distribute '[] a = '[]
 type instance Distribute (x ': xs) a = (x a) ': (Distribute xs a)
 
-type family Replicate (x::a) (n::Nat) :: [a]
-type instance Replicate x n = Replicate1 x (ToNat1 n)
-type family Replicate1 (x::a) (n::Nat1) :: [a]
-type instance Replicate1 x Zero = '[]
-type instance Replicate1 x (Succ n) = x ': (Replicate1 x n)
+type family Replicate (n::Nat) (x::a) :: [a]
+type instance Replicate n x = Replicate1 (ToNat1 n) x
+type family Replicate1 (n::Nat1) (x::a) :: [a]
+type instance Replicate1 Zero x = '[]
+type instance Replicate1 (Succ n) x = x ': (Replicate1 n x)
 
 type family Map (f :: a -> a) (xs::[a]) :: [a]
 type instance Map f '[] = '[]
 type instance Map f (x ': xs) = (f x) ': (Map f xs)
 
-type family Length (xs::[a]) :: Nat
-type instance Length '[] = 0
-type instance Length (a ': xs) = 1 + (Length xs)
+-- type family Length (xs::[a]) :: Nat
+-- type instance Length '[] = 0
+-- type instance Length (a ': xs) = 1 + (Length xs)
 
-type family MoveR (xs::[a]) (ys::[a]) :: [a]
-type instance MoveR '[] ys = ys
-type instance MoveR (x ': xs) ys = MoveR xs (x ': ys)
+type family Length (xs :: [a]) :: Nat
+type instance Length xs = FromNat1 ( Length1 xs )
+
+type family Length1 (xs::[a]) :: Nat1
+type instance Length1 '[] = Zero
+type instance Length1 (x ': xs) = Succ (Length1 xs)
 
 type family Reverse (xs::[a]) :: [a]
-type instance Reverse xs = MoveR xs '[]
-
-type family (xs::[a]) ++ (ys::[a]) :: [a]
-type instance xs ++ ys = MoveR (Reverse xs) ys
+type instance Reverse '[] = '[]
+type instance Reverse (x ': xs) = Reverse xs ++ '[x]
 
 type family (:!) (xs::[a]) (i::Nat) :: a
 type instance (:!) xs n = Index xs (ToNat1 n)
@@ -147,13 +245,36 @@ type family Index (xs::[a]) (i::Nat1) :: a
 type instance Index (x ': xs) Zero = x
 type instance Index (x ': xs) (Succ i) = Index xs i
 
+type family ($) (f :: a -> b) (a :: a) :: b
+type instance f $ a = f a
+     
+type family (xs :: [a]) ++ (ys :: [a]) :: [a]
+type instance '[] ++ ys = ys
+type instance (x ': xs) ++ ys = x ': (xs ++ ys)
+     
+type family Concat (xs :: [[a]]) :: [a]
+type instance Concat '[] = '[]
+type instance Concat (x ': xs) = x ++ Concat xs
+
+type Take (n::Nat) (xs :: [*]) = Take1 (ToNat1 n) xs
+
+type family Take1 (n::Nat1) (xs::[*]) :: [*]
+type instance Take1 Zero xs = '[]
+type instance Take1 (Succ n) (x ': xs) = x ': (Take1 n xs)
+
 ---------------------------------------
 
 data Nat1 = Zero | Succ Nat1
+data Nat1Box (n::Nat1) = Nat1Box
 
 type family FromNat1 (n :: Nat1) :: Nat
 type instance FromNat1 Zero     = 0
-type instance FromNat1 (Succ n) = 1 + FromNat1 n
+type instance FromNat1 (Succ Zero) = 1
+type instance FromNat1 (Succ (Succ Zero)) = 2
+type instance FromNat1 (Succ (Succ (Succ Zero))) = 3
+type instance FromNat1 (Succ (Succ (Succ (Succ Zero)))) = 4
+type instance FromNat1 (Succ (Succ (Succ (Succ (Succ Zero))))) = 5
+type instance FromNat1 (Succ (Succ (Succ (Succ (Succ (Succ Zero)))))) = 6
 
 type family ToNat1 (n :: Nat) :: Nat1
 type instance ToNat1 0 = Zero
