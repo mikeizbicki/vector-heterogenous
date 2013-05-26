@@ -5,11 +5,13 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE DeriveDataTypeable #-}
 
 module Data.Vector.Heterogenous.HList
     ( 
@@ -20,6 +22,9 @@ module Data.Vector.Heterogenous.HList
     , HList2List (..)
     , HTake1 (..)
     , HDrop1 (..)
+    
+    -- ** Typeable
+    , TypeList(..)
     
     -- * Downcasting
     , ConstraintBox (..)
@@ -42,6 +47,7 @@ module Data.Vector.Heterogenous.HList
     , Map (..)
     , Reverse (..)
     , (:!) (..)
+    , Index (..)
     , (++) (..)
     , ($) (..)
     , Concat (..)
@@ -56,7 +62,7 @@ module Data.Vector.Heterogenous.HList
     )
     where
 
--- import Data.Semigroup
+import Data.Dynamic
 import Data.Monoid
 import GHC.TypeLits
 import Unsafe.Coerce
@@ -89,7 +95,6 @@ instance (Ord x, Ord (HList xs)) => Ord (HList (x ': xs)) where
              EQ -> compare xs ys
              LT -> LT
              GT -> GT
-                                     
 
 instance Monoid (HList '[]) where
     mempty = HNil
@@ -97,6 +102,23 @@ instance Monoid (HList '[]) where
 instance (Monoid x, Monoid (HList xs)) => Monoid (HList (x ': xs)) where
     mempty = mempty:::mempty
     (x:::xs) `mappend` (y:::ys) = (x `mappend` y):::(xs `mappend` ys)
+
+-- | Typeable is scary and I don't understand what's going on.  Hopefully this is correct :)
+
+{-# NOINLINE hlistTyCon #-}
+hlistTyCon :: [TypeRep] -> TyCon
+hlistTyCon xs = mkTyCon3 "vector-heterogenous" "Data.Vector.Heterogenous.HList" ("HList '"++show xs)
+
+instance (TypeList (HList xs)) => Typeable (HList xs) where
+    typeOf _ = mkTyConApp (hlistTyCon $ typeList (undefined::HList xs)) []
+    
+class TypeList t where
+    typeList :: t -> [TypeRep]
+    
+instance TypeList (HList '[]) where
+    typeList _ = []
+instance (TypeList (HList xs), Typeable x) => TypeList (HList (x ': xs)) where
+    typeList _ = (typeOf (undefined::x)):(typeList (undefined::HList xs))
 
 -- | Used only for the HList class to determine its length
 
