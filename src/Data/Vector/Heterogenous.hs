@@ -17,6 +17,7 @@
 module Data.Vector.Heterogenous
     ( HVector(..)
     , vec
+    , View (..)
     
     -- * Construction helpers
     , ValidHVector(..)
