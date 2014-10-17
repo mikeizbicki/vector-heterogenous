@@ -12,9 +12,10 @@
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE CPP #-}
 
 module Data.Vector.Heterogenous.HList
-    ( 
+    (
     -- * Heterogenous List
     HList (..)
     , HLength (..)
@@ -22,25 +23,25 @@ module Data.Vector.Heterogenous.HList
     , HList2List (..)
     , HTake1 (..)
     , HDrop1 (..)
-    
+
     -- ** Typeable
     , TypeList(..)
-    
+
     -- * Downcasting
     , ConstraintBox (..)
     , Downcast (..)
-    
+
     -- * Boxes
     , ShowBox (..)
     , AnyBox (..)
-    
+
     -- * Type functions
-    
+
     -- ** HList
     , HCons (..)
     , UnHList (..)
     , HAppend
-    
+
     -- ** Type Lists
     , Distribute (..)
     , Replicate (..)
@@ -49,11 +50,11 @@ module Data.Vector.Heterogenous.HList
     , (:!) (..)
     , Index (..)
     , (++) (..)
-    , ($) (..)
+--     , ($) (..)
     , Concat (..)
     , Length (..)
     , Length1 (..)
-    
+
     -- ** Type Nats
     , Nat1(..)
     , Nat1Box(..)
@@ -74,8 +75,16 @@ import Unsafe.Coerce
 data HList :: [*] -> * where
     HNil :: HList '[]
     (:::) :: t -> HList ts -> HList (t ': ts)
-  
+
 infixr 5 :::
+
+#if __GLASGOW_HASKELL__ >= 708
+-- deriving instance Typeable
+--     typeRep _ = mkTyConApp (hlistTyCon $ typeList (undefined::HList xs)) []
+#else
+instance (TypeList (HList xs)) => Typeable (HList xs) where
+    typeOf _ = mkTyConApp (hlistTyCon $ typeList (undefined::HList xs)) []
+#endif
 
 instance Show (HList '[]) where
     show _ = "HNil"
@@ -86,11 +95,11 @@ instance Eq (HList '[]) where
     xs==ys = True
 instance (Eq x, Eq (HList xs)) => Eq (HList (x ': xs)) where
     (x:::xs)==(y:::ys) = (x==y)&&(xs==ys)
-    
+
 instance Ord (HList '[]) where
     compare HNil HNil = EQ
 instance (Ord x, Ord (HList xs)) => Ord (HList (x ': xs)) where
-    compare (x:::xs) (y:::ys) = 
+    compare (x:::xs) (y:::ys) =
         case compare x y of
              EQ -> compare xs ys
              LT -> LT
@@ -109,12 +118,9 @@ instance (Monoid x, Monoid (HList xs)) => Monoid (HList (x ': xs)) where
 hlistTyCon :: [TypeRep] -> TyCon
 hlistTyCon xs = mkTyCon3 "vector-heterogenous" "Data.Vector.Heterogenous.HList" ("HList '"++show xs)
 
-instance (TypeList (HList xs)) => Typeable (HList xs) where
-    typeOf _ = mkTyConApp (hlistTyCon $ typeList (undefined::HList xs)) []
-    
 class TypeList t where
     typeList :: t -> [TypeRep]
-    
+
 instance TypeList (HList '[]) where
     typeList _ = []
 instance (TypeList (HList xs), Typeable x) => TypeList (HList (x ': xs)) where
@@ -133,16 +139,16 @@ instance (HLength (HList xs)) => HLength (HList (x ': xs)) where
 
 class HList2List xs a | xs -> a where
     hlist2list :: xs -> [a]
-instance HList2List (HList '[]) a where
-    hlist2list xs = []
+instance HList2List (HList '[a]) a where
+    hlist2list (x:::HNil) = [x]
 instance (HList2List (HList xs) a) => HList2List (HList (a ':xs)) a where
-    hlist2list (x:::xs) = x:(hlist2list xs)    
+    hlist2list (x:::xs) = x:(hlist2list xs)
 
 -- | For construction from lists
 
 class List2HList x xs where
     list2hlist :: [x] -> HList (x ': xs)
-    
+
 instance List2HList x '[] where
     list2hlist []       = error "List2HList x HNil: cannot append empty list"
     list2hlist (x:[])   = x:::HNil
@@ -155,11 +161,11 @@ instance (List2HList x xs) => List2HList x (x ': xs) where
 -- | Equivalent to prelude's "drop"
 class HDrop1 n xs1 xs2 | n xs1 -> xs2 where
     hdrop1 :: n -> xs1 -> xs2
-    
+
 instance HDrop1 (Nat1Box Zero) (HList xs1) (HList xs1) where
     hdrop1 n xs = xs
-    
-instance (HDrop1 (Nat1Box n) (HList xs1) (HList xs2)) => 
+
+instance (HDrop1 (Nat1Box n) (HList xs1) (HList xs2)) =>
     HDrop1 (Nat1Box (Succ n)) (HList (x ': xs1)) (HList xs2) where
     hdrop1 _ (x:::xs) = hdrop1 (Nat1Box :: Nat1Box n) xs
 
@@ -169,10 +175,10 @@ class HTake1 n xs1 xs2 | n xs1 -> xs2 where
 
 instance HTake1 (Nat1Box Zero) (HList xs1) (HList '[]) where
     htake1 _ _ = HNil
-    
+
 instance (HTake1 (Nat1Box n) (HList xs1) (HList xs2)) => HTake1 (Nat1Box (Succ n)) (HList (x ': xs1)) (HList (x ': xs2)) where
     htake1 _ (x:::xs) = x:::(htake1 (Nat1Box :: Nat1Box n) xs)
-    
+
 -- instance (HTake1 (Nat1Box (ToNat1 n)) (HList xs1) (HList xs2)) => HTake1 (Sing n) (HList xs1) (HList xs2) where
 --     htake1 _ xs = htake1 (Nat1Box :: Nat1Box (ToNat1 n)) xs
 
@@ -186,10 +192,10 @@ instance (HTake1 (Nat1Box n) (HList xs1) (HList xs2)) => HTake1 (Nat1Box (Succ n
 class ConstraintBox box a where
     box :: a -> box
     unsafeUnbox :: box -> a
-    
+
 class Downcast h box where
     downcast :: h -> [box]
-    
+
     downcastAs :: (a->box) -> h -> [box]
     downcastAs box = downcast
 
@@ -267,13 +273,13 @@ type family Index (xs::[a]) (i::Nat1) :: a
 type instance Index (x ': xs) Zero = x
 type instance Index (x ': xs) (Succ i) = Index xs i
 
-type family ($) (f :: a -> b) (a :: a) :: b
-type instance f $ a = f a
-     
+-- type family ($) (f :: a -> b) (a :: a) :: b
+-- type instance f $ a = f a
+
 type family (xs :: [a]) ++ (ys :: [a]) :: [a]
 type instance '[] ++ ys = ys
 type instance (x ': xs) ++ ys = x ': (xs ++ ys)
-     
+
 type family Concat (xs :: [[a]]) :: [a]
 type instance Concat '[] = '[]
 type instance Concat (x ': xs) = x ++ Concat xs

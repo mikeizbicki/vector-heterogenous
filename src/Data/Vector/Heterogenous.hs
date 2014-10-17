@@ -18,13 +18,13 @@ module Data.Vector.Heterogenous
     ( HVector(..)
     , vec
     , View (..)
-    
+
     -- * Construction helpers
     , ValidHVector(..)
     , toHList
 --     , HListBuilder(..)
 --     , Indexer (..)
-    
+
     -- * Modules
     , module Data.Vector.Heterogenous.HList
     , module Data.Vector.Heterogenous.Unsafe
@@ -72,13 +72,13 @@ vec box xs = HVector $ V.create $ do
 -------------------------------------------------------------------------------
 
 
-class 
+class
     ( Downcast (HList xs) box
     , HLength (HList xs)
     , HListBuilder (Indexer (HVector box xs))  (HList xs)
     ) => ValidHVector box xs
 
-instance 
+instance
     ( Downcast (HList xs) box
     , HLength (HList xs)
     , HListBuilder (Indexer (HVector box xs))  (HList xs)
@@ -93,19 +93,19 @@ toHList hv = buildHList $ Indexer hv (V.length (getvec hv) -1)
 
 class HListBuilder xs ys | xs -> ys where
     buildHList :: xs -> ys
-    
+
 instance HListBuilder (Indexer (HVector box '[])) (HList '[]) where
     buildHList _ = HNil
 
 instance
     ( ConstraintBox box x
     , HListBuilder (Indexer (HVector box xs)) (HList xs)
-    ) => HListBuilder (Indexer (HVector box (x ': xs))) (HList (x ': xs)) 
+    ) => HListBuilder (Indexer (HVector box (x ': xs))) (HList (x ': xs))
         where
-    buildHList (Indexer (HVector v) i) = 
-        (unsafeUnbox $ v V.! i):::(buildHList (Indexer (HVector v) (i-1) :: Indexer (HVector box xs))) 
-    
-instance 
+    buildHList (Indexer (HVector v) i) =
+        (unsafeUnbox $ v V.! i):::(buildHList (Indexer (HVector v) (i-1) :: Indexer (HVector box xs)))
+
+instance
     ( Monoid (HList xs)
     , Downcast (HList xs) box
     , HLength (HList xs)
@@ -121,17 +121,17 @@ data Empty a
 
 class View vec i ret | vec i -> ret where
     view :: vec -> i -> ret
-        
+
 instance (ConstraintBox box x) => View (Indexer (HVector box (x ': xs))) (Empty Zero) x where
     view (Indexer (HVector v) i) _ = unsafeUnbox $ v V.! i
-    
+
 instance (ConstraintBox box ret, View (Indexer (HVector box xs)) (Empty n) ret) => View (Indexer (HVector box (x ': xs))) (Empty (Succ n)) ret where
     view (Indexer (HVector v) i) _ = unsafeUnbox $ v V.! i
-    
-instance 
+
+instance
     ( View (Indexer (HVector box xs)) (Empty (ToNat1 n)) ret
-    , SingI n
-    ) => View (HVector box xs) (Sing n) ret where
+    , KnownNat n
+    ) => View (HVector box xs) (proxy n) ret where
     view hv _ = Indexer hv (V.length (getvec hv) -n-1) `view` (undefined::Empty (ToNat1 n))
         where
-            n = fromIntegral $ fromSing (sing :: Sing n)
+            n = fromIntegral $ natVal (undefined :: proxy n)

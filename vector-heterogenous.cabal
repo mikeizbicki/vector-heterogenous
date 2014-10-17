@@ -1,7 +1,7 @@
 Name:                vector-heterogenous
-Version:             0.1.2
+Version:             0.2.0
 Synopsis:            A type-safe library for vectors whose elements can be of any type, or any type satisfying some constraints
-Description:         
+Description:
 Category:            Data, Data Structures
 License:             BSD3
 --License-file:        LICENSE
@@ -13,17 +13,17 @@ homepage:            http://github.com/mikeizbicki/vector-heterogenous/
 bug-reports:         http://github.com/mikeizbicki/vector-heterogenous/issues
 
 Library
-    Build-Depends:      
+    Build-Depends:
         base                        >= 3 && < 5,
         vector                      >= 0.9
-        
+
     hs-source-dirs:     src
-    ghc-options:        
-        -rtsopts 
-        -O2 
+    ghc-options:
+        -rtsopts
+        -O2
         -- -fllvm
     Exposed-modules:
         Data.Vector.Heterogenous
         Data.Vector.Heterogenous.HList
         Data.Vector.Heterogenous.Unsafe
-        
+
