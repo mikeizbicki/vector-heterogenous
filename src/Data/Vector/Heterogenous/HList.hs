@@ -49,7 +49,7 @@ module Data.Vector.Heterogenous.HList
     , Reverse (..)
     , (:!) (..)
     , Index (..)
-    , (++) (..)
+    , type (++) (..)
 --     , ($) (..)
     , Concat (..)
     , Length (..)
